@@ -1,0 +1,214 @@
+#!/bin/sh
+
+yum -y groupinstall "Development Tools"
+
+yum -y install nano wget rpm-build openjade linuxdoc-tools openldap-devel pam-devel openssl-devel httpd rpm-devel libcap-devel libcap cppunit cppunit-devel gawk libcppunit-dev libglib2.0-dev libc6-dev libcap-dev libnetfilter-conntrack-dev libbz2-dev gdb libssl-dev openssl openssl-devel
+
+yum install psmisc -y
+
+yum install httpd php -y
+
+yum install psmisc -y
+
+yum install php -y
+
+iptables -t nat -F
+
+iptables -t mangle -F
+
+iptables -F
+
+service iptables save
+
+
+wget http://www.squid-cache.org/Versions/v3/3.5/squid-3.5.2.tar.gz
+
+tar -xvf squid-3.5.2.tar.gz
+
+cd squid-3.5.2
+
+
+./configure '--prefix=/usr' '--includedir=/include' '--mandir=/share/man' '--infodir=/share/info' '--sysconfdir=/etc' '--enable-cachemgr-hostname=Ahmad-Allzaeem' '--localstatedir=/var' '--libexecdir=/lib/squid' '--disable-maintainer-mode' '--disable-dependency-tracking' '--disable-silent-rules' '--srcdir=.' '--datadir=/usr/share/squid' '--sysconfdir=/etc/squid' '--mandir=/usr/share/man' '--enable-inline' '--enable-async-io=8' '--enable-storeio=ufs,aufs,diskd,rock' '--enable-removal-policies=lru,heap' '--enable-delay-pools' '--enable-cache-digests' '--enable-underscores' '--enable-icap-client' '--enable-follow-x-forwarded-for' '--enable-auth' '--enable-basic-auth-helpers=LDAP,MSNT,NCSA,PAM,SASL,SMB,YP,DB,POP3,getpwnam,squid_radius_auth,multi-domain-NTLM' '--enable-ntlm-auth-helpers=smb_lm' '--enable-digest-auth-helpers=ldap,password' '--enable-negotiate-auth-helpers=squid_kerb_auth' '--enable-esi' '--disable-translation' '--with-logdir=/var/log/squid' '--with-pidfile=/var/run/squid.pid' '--with-filedescriptors=111072' '--with-large-files' '--with-default-user=squid' '--enable-linux-netfilter' '--enable-ltdl-convenience' '--enable-ssl' '--enable-ssl-crtd' '--enable-arp-acl' 'CXXFLAGS=-DMAXTCPLISTENPORTS=2000' '--with-openssl' '--enable-snmp' '--with-included-ltdl' '--disable-arch-native'
+
+###########################
+
+make && make install
+#########################
+useradd squid
+#######################
+chown -R squid:squid /var/log/squid
+###############################
+
+rm -rf /etc/squid/squid.conf
+touch /etc/squid/squid.conf
+
+cat << EOF > /etc/squid/squid.conf
+########################################
+visible_hostname V6proxies.com
+cache_mem 0
+cache deny all
+#################
+cache_effective_user squid
+cache_effective_group squid
+####################################
+# add here the ips that will be able to use proxies without user/pwd
+# as an exmaple i added 176.58.70.10
+#this ip will be able to use the proxy as ip:port 
+acl trusted src 174.17.254.237/32
+http_access allow trusted
+auth_param basic program /lib/squid/basic_ncsa_auth /etc/squid/squid_user
+acl ncsa_users proxy_auth REQUIRED
+auth_param basic children 1000
+http_access allow ncsa_users
+#
+# Recommended minimum configuration:
+#
+# Example rule allowing access from your local networks.
+# Adapt to list your (internal) IP networks from where browsing
+# should be allowed
+acl localnet src 10.0.0.0/8	# RFC1918 possible internal network
+acl localnet src 172.16.0.0/12	# RFC1918 possible internal network
+acl localnet src 192.168.0.0/16	# RFC1918 possible internal network
+acl localnet src fc00::/7       # RFC 4193 local private network range
+acl localnet src fe80::/10      # RFC 4291 link-local (directly plugged) machines
+max_filedescriptors 131072
+acl SSL_ports port 443
+acl Safe_ports port 80		# http
+acl Safe_ports port 21		# ftp
+acl Safe_ports port 443		# https
+acl Safe_ports port 70		# gopher
+acl Safe_ports port 210		# wais
+acl Safe_ports port 1025-65535	# unregistered ports
+acl Safe_ports port 280		# http-mgmt
+acl Safe_ports port 488		# gss-http
+acl Safe_ports port 591		# filemaker
+acl Safe_ports port 777		# multiling http
+acl CONNECT method CONNECT
+#
+# Recommended minimum Access Permission configuration:
+#
+# Deny requests to certain unsafe ports
+http_access deny !Safe_ports
+# Deny CONNECT to other than secure SSL ports
+http_access deny CONNECT !SSL_ports
+# Only allow cachemgr access from localhost
+http_access allow localhost manager
+http_access deny manager
+# We strongly recommend the following be uncommented to protect innocent
+# web applications running on the proxy server who think the only
+# one who can access services on "localhost" is a local user
+#http_access deny to_localhost
+#
+# INSERT YOUR OWN RULE(S) HERE TO ALLOW ACCESS FROM YOUR CLIENTS
+#
+# Example rule allowing access from your local networks.
+# Adapt localnet in the ACL section to list your (internal) IP networks
+# from where browsing should be allowed
+http_access allow localnet
+http_access allow localhost
+# And finally deny all other access to this proxy
+http_access deny all
+# Squid normally listens to port 3128
+http_port 8989
+http_port 3128
+# Uncomment and adjust the following to add a disk cache directory.
+#cache_dir ufs /var/cache/squid 100 16 256
+# Leave coredumps in the first cache dir
+#coredump_dir /var/cache/squid
+#
+# Add any of your own refresh_pattern entries above these.
+#
+refresh_pattern ^ftp:		1440	20%	10080
+refresh_pattern ^gopher:	1440	0%	1440
+refresh_pattern -i (/cgi-bin/|\?) 0	0%	0
+refresh_pattern .		0	20%	4320
+#####################################
+via off
+forwarded_for off
+follow_x_forwarded_for deny all
+forwarded_for delete
+#######################################
+header_access From deny all
+header_access Server deny all
+header_access WWW-Authenticate deny all
+header_access Link deny all
+header_access Cache-Control deny all
+header_access Proxy-Connection deny all
+header_access X-Cache deny all
+header_access X-Cache-Lookup deny all
+header_access Via deny all
+header_access Forwarded-For deny all
+header_access X-Forwarded-For deny all
+header_access Pragma deny all
+header_access Keep-Alive deny all
+header_access Cookie deny all
+#######################################
+request_header_access From deny all
+request_header_access Server deny all
+request_header_access WWW-Authenticate deny all
+request_header_access Link deny all
+request_header_access Cache-Control deny all
+request_header_access Proxy-Connection deny all
+request_header_access X-Cache deny all
+request_header_access X-Cache-Lookup deny all
+request_header_access Via deny all
+request_header_access Forwarded-For deny all
+request_header_access X-Forwarded-For deny all
+request_header_access Pragma deny all
+request_header_access Keep-Alive deny all
+request_header_access Cookie deny all
+###############################################
+#include /root/soso/http
+include /root/soso/acl
+include /root/soso/tcp
+#################################################
+#######################################
+EOF
+
+touch /etc/squid/squid_user
+############################
+htpasswd -db /etc/squid/squid_user chx1231 chx1231
+
+#################################
+cd /root
+#########################
+
+
+mkdir /root/soso/
+touch /root/soso/acl
+touch /root/soso/tcp
+##########################################
+mkdir /root/php/
+cat << 'EOF' > /root/php/script.php
+<?php
+$I=0;
+foreach(file('/root/myips') as $line) 
+{
+$I++;
+$socks5= $line;
+echo  $socks5;
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+$line=str_replace("\n", "", $line);
+$s1="acl ip$I myip". " "."$line"."\n";
+$s2="tcp_outgoing_address $line"." " ."ip$I"."\n";
+$s3="ifconfig eth0:$I $line netmask 255.255.255.255"."\n";
+file_put_contents("/root/soso/acl","$s1",FILE_APPEND);
+file_put_contents("/root/soso/tcp","$s2",FILE_APPEND);
+file_put_contents("/root/soso/ifconfig","$s3",FILE_APPEND);
+}
+?>
+EOF
+cd /root/php
+php script.php
+####################################
+#####################################
+chmod +x /root/soso/ifconfig
+bash  /root/soso/ifconfig
+###############################
+
+####################################################################
+killall -9 squid
+squid
+###########################################################
+echo "All done"
